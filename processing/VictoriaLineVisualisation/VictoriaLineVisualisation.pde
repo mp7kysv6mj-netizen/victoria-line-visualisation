@@ -1,15 +1,8 @@
-
-import java.util.HashSet;
 import java.util.ArrayList;
 
 Table observations;
 
-ArrayList<String> stationNames = new ArrayList<String>();
-ArrayList<Integer> arrivalTimes = new ArrayList<Integer>();
-
 String selectedTrain = "222";
-String selectedDestination = "Walthamstow Central";
-String selectedSnapshot = "";
 
 String[] victoriaStations = {
   "Brixton",
@@ -30,30 +23,28 @@ String[] victoriaStations = {
   "Walthamstow Central"
 };
 
+ArrayList<String> stationNames = new ArrayList<String>();
+ArrayList<Float> arrivalTimes = new ArrayList<Float>();
+
 float trackX = 100;
 float startY = 150;
 float spacing = 30;
 
-int snapshotTime;
+int sketchStartTime;
 
 void setup() {
-
   size(800, 700);
-  pixelDensity(1);
 
   observations = loadTable("victoria_line_observations.csv", "header");
 
   if (observations == null) {
-    println("ERROR: Could not load CSV file.");
+    println("Could not load CSV file.");
     exit();
-    return;
   }
 
-  println("Dataset loaded: " + observations.getRowCount());
+  String selectedSnapshot = "";
 
-  // Find the first snapshot for train 222
   for (TableRow row : observations.rows()) {
-
     if (row.getString("vehicleId").equals(selectedTrain)) {
       selectedSnapshot = row.getString("capturedAt");
       break;
@@ -61,30 +52,34 @@ void setup() {
   }
 
   if (selectedSnapshot.equals("")) {
-    println("Train 222 was not found.");
+    println("Selected train was not found.");
     exit();
-    return;
   }
 
-  // Load predictions from the selected snapshot
   for (TableRow row : observations.rows()) {
+    String vehicleId = row.getString("vehicleId");
+    String capturedAt = row.getString("capturedAt");
 
-    if (row.getString("vehicleId").equals(selectedTrain) &&
-        row.getString("capturedAt").equals(selectedSnapshot)) {
+    if (vehicleId.equals(selectedTrain) &&
+        capturedAt.equals(selectedSnapshot)) {
 
-      stationNames.add(row.getString("stationName"));
-      arrivalTimes.add(row.getInt("timeToStation"));
+      String station = row.getString("stationName");
+      float time = row.getFloat("timeToStation");
+
+      if (!stationNames.contains(station)) {
+        stationNames.add(station);
+        arrivalTimes.add(time);
+      }
     }
   }
 
   // Sort predictions by arrival time
   for (int i = 0; i < arrivalTimes.size(); i++) {
-
     for (int j = i + 1; j < arrivalTimes.size(); j++) {
 
       if (arrivalTimes.get(j) < arrivalTimes.get(i)) {
 
-        int tempTime = arrivalTimes.get(i);
+        float tempTime = arrivalTimes.get(i);
         arrivalTimes.set(i, arrivalTimes.get(j));
         arrivalTimes.set(j, tempTime);
 
@@ -95,102 +90,29 @@ void setup() {
     }
   }
 
-  // Remove duplicate station predictions
-  HashSet<String> seenStations = new HashSet<String>();
+  sketchStartTime = millis();
 
-  ArrayList<String> uniqueNames = new ArrayList<String>();
-  ArrayList<Integer> uniqueTimes = new ArrayList<Integer>();
-
-  for (int i = 0; i < stationNames.size(); i++) {
-
-    if (!seenStations.contains(stationNames.get(i))) {
-
-      seenStations.add(stationNames.get(i));
-
-      uniqueNames.add(stationNames.get(i));
-      uniqueTimes.add(arrivalTimes.get(i));
-    }
-  }
-
-  stationNames = uniqueNames;
-  arrivalTimes = uniqueTimes;
-
-  // Sort predictions geographically northbound
-  for (int i = 0; i < stationNames.size(); i++) {
-
-    for (int j = i + 1; j < stationNames.size(); j++) {
-
-      int first = getStationIndex(stationNames.get(i));
-      int second = getStationIndex(stationNames.get(j));
-
-      if (first >= 0 && second >= 0 && second < first) {
-
-        String tempStation = stationNames.get(i);
-        stationNames.set(i, stationNames.get(j));
-        stationNames.set(j, tempStation);
-
-        int tempTime = arrivalTimes.get(i);
-        arrivalTimes.set(i, arrivalTimes.get(j));
-        arrivalTimes.set(j, tempTime);
-      }
-    }
-  }
-
-  snapshotTime = millis();
-
-  println("Train " + selectedTrain + " loaded.");
+  println("Selected train: " + selectedTrain);
   println("Predicted stops: " + stationNames.size());
 }
 
-int getStationIndex(String station) {
-
-  for (int i = 0; i < victoriaStations.length; i++) {
-
-    if (station.equals(victoriaStations[i] + " Underground Station")) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
 void draw() {
+  background(25, 30, 40);
 
-  background(24, 29, 38);
-
-  float elapsedSeconds = (millis() - snapshotTime) / 1000.0;
-
-  // Header
-  fill(255);
-  textSize(27);
-  text("VICTORIA LINE", 30, 38);
-
-  fill(170, 180, 195);
-  textSize(12);
-  text("FULL NORTHBOUND ROUTE VISUALISATION", 32, 60);
-
-  // Information panel
-  fill(39, 47, 60);
-  noStroke();
-  rect(30, 75, 740, 65, 12);
+  float elapsedSeconds = (millis() - sketchStartTime) / 1000.0;
 
   fill(255);
-  textSize(15);
-  text("TRAIN ID: " + selectedTrain, 50, 102);
+  textSize(24);
+  text("Victoria Line Train Visualisation", 30, 40);
 
-  fill(230, 190, 55);
-  text("NORTHBOUND", 50, 125);
+  textSize(14);
+  fill(190);
+  text("Train ID: " + selectedTrain, 30, 70);
+  text("Predicted journey from TfL arrival data", 30, 95);
 
-  fill(255);
-  text("BRIXTON TO WALTHAMSTOW CENTRAL", 330, 102);
-
-  fill(170, 180, 195);
-  text("Predicted stops: " + stationNames.size(), 330, 125);
-
-  // Draw the complete Victoria line
-  stroke(0, 160, 220);
+  // Draw railway line
+  stroke(0, 152, 212);
   strokeWeight(6);
-
   line(
     trackX,
     startY,
@@ -198,20 +120,18 @@ void draw() {
     startY + (victoriaStations.length - 1) * spacing
   );
 
-  // Draw all 16 stations
+  // Draw all stations
   for (int i = 0; i < victoriaStations.length; i++) {
-
     float stationY = startY + i * spacing;
 
-    fill(24, 29, 38);
-    stroke(0, 160, 220);
-    strokeWeight(3);
-
-    ellipse(trackX, stationY, 13, 13);
+    stroke(255);
+    strokeWeight(2);
+    fill(25, 30, 40);
+    ellipse(trackX, stationY, 12, 12);
 
     fill(255);
-    textSize(12);
-    text(victoriaStations[i], 130, stationY + 4);
+    textSize(13);
+    text(victoriaStations[i], trackX + 25, stationY + 5);
   }
 
   // Find the next predicted station
@@ -219,22 +139,35 @@ void draw() {
 
   while (nextStation < arrivalTimes.size() &&
          arrivalTimes.get(nextStation) <= elapsedSeconds) {
-
     nextStation++;
   }
 
-  // Calculate the train's position
+  // Calculate train position
   if (stationNames.size() > 0) {
 
     float trainY;
 
     if (nextStation == 0) {
 
-      int index = getStationIndex(stationNames.get(0));
-      trainY = startY + index * spacing;
+      // Start halfway between the previous station and first predicted stop
+      int firstStationIndex = getStationIndex(stationNames.get(0));
+
+      float firstStationY = startY + firstStationIndex * spacing;
+      float previousStationY = firstStationY - spacing * 0.5;
+
+      float firstArrivalTime = max(1, arrivalTimes.get(0));
+
+      float progress = constrain(
+        elapsedSeconds / firstArrivalTime,
+        0,
+        1
+      );
+
+      trainY = lerp(previousStationY, firstStationY, progress);
 
     } else if (nextStation >= stationNames.size()) {
 
+      // Final predicted station reached
       int index = getStationIndex(
         stationNames.get(stationNames.size() - 1)
       );
@@ -243,6 +176,7 @@ void draw() {
 
     } else {
 
+      // Move between consecutive predicted stations
       int previousIndex = getStationIndex(
         stationNames.get(nextStation - 1)
       );
@@ -256,10 +190,11 @@ void draw() {
 
       float duration = max(1, nextTime - previousTime);
 
-      float progress =
-        (elapsedSeconds - previousTime) / duration;
-
-      progress = constrain(progress, 0, 1);
+      float progress = constrain(
+        (elapsedSeconds - previousTime) / duration,
+        0,
+        1
+      );
 
       float previousY = startY + previousIndex * spacing;
       float nextY = startY + nextIndex * spacing;
@@ -267,54 +202,55 @@ void draw() {
       trainY = lerp(previousY, nextY, progress);
     }
 
-    // Draw the train marker
+    // Draw train
     fill(255, 190, 50);
     noStroke();
     ellipse(trackX, trainY, 22, 22);
+  }
 
-    // Display countdown
-    if (nextStation < stationNames.size()) {
+  // Display next predicted arrival
+  fill(255);
+  textSize(14);
 
-      int remaining = max(
-        0,
-        ceil(arrivalTimes.get(nextStation) - elapsedSeconds)
-      );
+  if (nextStation < stationNames.size()) {
 
-      fill(255, 190, 50);
-      textSize(13);
-      text(
-        "NEXT STOP: " + stationNames.get(nextStation)
-          .replace(" Underground Station", ""),
-        330,
-        180
-      );
+    float remainingTime = max(
+      0,
+      arrivalTimes.get(nextStation) - elapsedSeconds
+    );
 
-      fill(255);
-      text(
-        "ESTIMATED ARRIVAL: " + formatTime(remaining),
-        330,
-        205
-      );
+    text(
+      "Next predicted stop: " + stationNames.get(nextStation),
+      450, 100
+    );
 
-    } else {
+    text(
+      "Predicted arrival in: " + int(remainingTime) + " seconds",
+      450, 125
+    );
 
-      fill(255, 190, 50);
-      textSize(13);
-      text("END OF AVAILABLE PREDICTIONS", 330, 180);
+  } else {
+    text("Final predicted stop reached", 450, 100);
+  }
+
+  fill(170);
+  textSize(12);
+  text(
+    "Based on TfL arrival predictions. Train position is illustrative.",
+    30, 665
+  );
+}
+
+// Find station position on the Victoria line
+int getStationIndex(String station) {
+  for (int i = 0; i < victoriaStations.length; i++) {
+
+    if (station.equals(
+      victoriaStations[i] + " Underground Station"
+    )) {
+      return i;
     }
   }
 
-  // Footer
-  fill(130, 145, 165);
-  textSize(11);
-  text("Source: Transport for London arrival predictions", 30, 650);
-  text("Full route shown; train position uses recorded predictions", 30, 670);
-}
-
-String formatTime(int seconds) {
-
-  int minutes = seconds / 60;
-  int remainingSeconds = seconds % 60;
-
-  return nf(minutes, 2) + ":" + nf(remainingSeconds, 2);
+  return 0;
 }
